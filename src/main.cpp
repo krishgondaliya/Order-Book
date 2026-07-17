@@ -1,58 +1,132 @@
-﻿#include <iostream>
+#include <iostream>
 #include <string>
+#include <map>
+#include <set>
+#include <list>
+#include <cmath>
+#include <deque>
+#include <stack>
+#include <limits>
+#include <vector>
+#include <numeric>
+#include <algorithm>
+#include <memory>
+#include <variant>
+#include <unordered_map>
+#include <optional>
+#include <tuple>
+#include <format>
+#include <ctime>
+#include <cstdint>
+#include <stdexcept>
 
-#include "me/parser.hpp"
+enum class OrderType
+{
+    GoodTillCancel,
+    FillAndKill
+};
+
+enum class Side
+{
+    Buy,
+    Sell
+};
+
+using Price = std::int32_t;
+using Quantity = std::uint32_t;
+using OrderId = std::uint64_t;
+
+struct LevelInfo
+{
+    Price price_;
+    Quantity quantity_;
+};
+
+using LevelInfos = std::vector<LevelInfo>;
+
+class OrderbookLevelInfos
+{
+public:
+    OrderbookLevelInfos(const LevelInfos& bids, const LevelInfos& asks)
+        : bids_{ bids }
+        , asks_{ asks }
+    { }
+
+    const LevelInfos& GetBids() const { return bids_; }
+    const LevelInfos& GetAsks() const { return asks_; }
+
+private:
+    LevelInfos bids_;
+    LevelInfos asks_;
+};
+
+class Order
+{
+public:
+    Order(OrderType orderType, OrderId orderId, Side side, Price price, Quantity quantity)
+        : orderType_{ orderType }
+        , orderId_{ orderId }
+        , side_{ side }
+        , price_{ price }
+        , initialQuantity_{ quantity }
+        , remainingQuantity_{ quantity }
+    { }
+
+    OrderId GetOrderId() const { return orderId_; }
+    Side GetSide() const { return side_; };
+    Price GetPrice() const { return price_; }
+    OrderType GetOrderType() const { return orderType_; }
+    Quantity GetInitialQuantity() const{ return initialQuantity_; }
+    Quantity GetRemainingQuantity() const{ return remainingQuantity_; }
+    Quantity GetFilledQuantity() const{ return GetInitialQuantity() - GetRemainingQuantity(); }
+    void Fill(Quantity quantity)
+    {
+        if (quantity > GetRemainingQuantity())
+            throw std::logic_error(std::format("Order ({}) cannot be filled for more than its remaining quantity.", GetOrderId()));
+
+        remainingQuantity_ -= quantity;
+    }
+
+private:
+    OrderType orderType_;
+    OrderId orderId_;
+    Side side_;
+    Price price_;
+    Quantity initialQuantity_;
+    Quantity remainingQuantity_;
+};
+
+using OrderPointer = std::shared_ptr<Order>;
+using OrderPointer = std::list<OrderPointer>;
+
+class OrderModify
+{
+public:
+    OrderModify(OrderId orderId, Side side, Price price, Quantity quantity)
+        : orderId_{ orderId }
+        , price_{ price }
+        , side_{ side }
+        , quantity_{ quantity }
+    { }
+
+    OrderId GetOrderId() const { return orderId_; }
+    Price GetPrice() const { return price_; }
+    Side GetSide() const { return side_; }
+    Quantity GetQuantity() const { return quantity_; }
+
+    OrderPointer ToOrderPointer(OrderType type) const
+    {
+        return std::make_shared<Order>(type, GetOrderId(), GetSide(), GetPrice(), GetQuantity());
+    }
+
+private:
+    OrderId orderId_;
+    Price price_;
+    Side side_;
+    Quantity quantity_;
+};
 
 int main() {
-    std::cout << "Trading Message Parser\n";
-    std::cout << "Examples:\n";
-    std::cout << "  ADD 101 BUY 100 50\n";
-    std::cout << "  CANCEL 101\n";
-    std::cout << "  MODIFY 101 105 25\n";
-    std::cout << "Type EXIT to quit.\n\n";
-
-    std::string line;
-
-    while (true) {
-        std::cout << "> ";
-        std::getline(std::cin, line);
-
-        if (line == "EXIT") {
-            break;
-        }
-
-        auto command = me::parse_command(line);
-
-        if (!command.has_value()) {
-            std::cout << "Invalid command\n";
-            continue;
-        }
-
-        if (command->type == me::CommandType::Add) {
-            std::cout << "Parsed ADD order: ";
-            std::cout << "id=" << command->order_id;
-            std::cout << " price=" << command->price;
-            std::cout << " quantity=" << command->quantity;
-
-            if (command->side == me::Side::Buy) {
-                std::cout << " side=BUY\n";
-            } else {
-                std::cout << " side=SELL\n";
-            }
-        }
-
-        if (command->type == me::CommandType::Cancel) {
-            std::cout << "Parsed CANCEL order: ";
-            std::cout << "id=" << command->order_id << "\n";
-        }
-
-        if (command->type == me::CommandType::Modify) {
-            std::cout << "Parsed MODIFY order: ";
-            std::cout << "id=" << command->order_id;
-            std::cout << " new_price=" << command->price;
-            std::cout << " new_quantity=" << command->quantity << "\n";
-        }
-    }
 
     return 0;
 }
